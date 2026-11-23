@@ -394,6 +394,7 @@ footer b{color:#fff}
           <label for="nom">Nom<input id="nom" name="nom" autocomplete="name"></label>
           <label for="tel">Téléphone<input id="tel" name="tel" type="tel" autocomplete="tel"></label>
         </div>
+        <label for="email">E-mail <span style="font-weight:400">(facultatif, pour recevoir une réponse par mail)</span><input id="email" name="email" type="email" autocomplete="email" inputmode="email"></label>
         <div class="row">
           <label for="vehicule">Véhicule<input id="vehicule" name="vehicule" placeholder="Ex. Peugeot 208 2019"></label>
           <label for="prestation">Prestation<select id="prestation" name="prestation"></select></label>
@@ -503,23 +504,26 @@ try{
   st.classList.add(open?'open':'closed'); tx.textContent=t;
 }catch(e){}
 const sendBtn=document.getElementById('sendBtn');
-const FORM_URL='https://formsubmit.co/ajax/arbdiagauto13@gmail.com';
+const FORM_URL='https://api.web3forms.com/submit', ACCESS_KEY='13abc67d-c800-4fbb-8ccb-c506fda2aded';
 f.addEventListener('submit',async e=>{
   e.preventDefault();
-  const nom=f.nom.value.trim(), tel=f.tel.value.trim();
+  const nom=f.nom.value.trim(), tel=f.tel.value.trim(), mail=f.email.value.trim();
   if(!nom||!tel){err.textContent='Indiquez au moins votre nom et votre téléphone.';(nom?f.tel:f.nom).focus();return;}
+  if(mail&&!f.email.checkValidity()){err.textContent='L\'adresse e-mail semble incorrecte.';f.email.focus();return;}
   if(f._honey.value) return;
   err.textContent=''; ok.classList.remove('show');
   sendBtn.disabled=true; sendBtn.textContent='Envoi en cours…';
-  const data={Nom:nom,'Téléphone':tel,'Véhicule':f.vehicule.value.trim()||'—',Prestation:f.prestation.value,Message:f.msg.value.trim()||'—',
-    _subject:'Nouvelle demande de RDV – '+nom,_template:'table',_captcha:'false'};
+  const data={access_key:ACCESS_KEY,subject:'Nouvelle demande de RDV – '+nom,from_name:'Site ARB DiagAuto',
+    Nom:nom,'Téléphone':tel,'E-mail':mail||'—','Véhicule':f.vehicule.value.trim()||'—',Prestation:f.prestation.value,Message:f.msg.value.trim()||'—'};
+  if(mail) data.replyto=mail;
   try{
     const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),15000);
     const r=await fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(data),signal:ctl.signal});
     clearTimeout(to);
     let j={}; try{j=await r.json()}catch(_){}
-    if(!r.ok||String(j.success)==='false') throw new Error(j.message||r.status);
-    ok.innerHTML='<strong>Demande envoyée, merci '+nom.replace(/[&<>"]/g,'')+' !</strong><br>Le garage vous rappelle au '+tel.replace(/[&<>"]/g,'')+' dès que possible.';
+    if(!r.ok||!j.success) throw new Error(j.message||r.status);
+    const clean=s=>s.replace(/[&<>"]/g,'');
+    ok.innerHTML='<strong>Demande envoyée, merci '+clean(nom)+' !</strong><br>Le garage vous rappelle au '+clean(tel)+' dès que possible.';
     ok.classList.add('show'); f.reset();
   }catch(x){
     err.innerHTML='L\'envoi n\'a pas fonctionné. Appelez directement le <a href="tel:+33616178325">06 16 17 83 25</a>.';
