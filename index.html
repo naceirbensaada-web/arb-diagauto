@@ -514,8 +514,11 @@ f.addEventListener('submit',async e=>{
   const data={Nom:nom,'Téléphone':tel,'Véhicule':f.vehicule.value.trim()||'—',Prestation:f.prestation.value,Message:f.msg.value.trim()||'—',
     _subject:'Nouvelle demande de RDV – '+nom,_template:'table',_captcha:'false'};
   try{
-    const r=await fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(data)});
-    if(!r.ok) throw new Error(r.status);
+    const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),15000);
+    const r=await fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(data),signal:ctl.signal});
+    clearTimeout(to);
+    let j={}; try{j=await r.json()}catch(_){}
+    if(!r.ok||String(j.success)==='false') throw new Error(j.message||r.status);
     ok.innerHTML='<strong>Demande envoyée, merci '+nom.replace(/[&<>"]/g,'')+' !</strong><br>Le garage vous rappelle au '+tel.replace(/[&<>"]/g,'')+' dès que possible.';
     ok.classList.add('show'); f.reset();
   }catch(x){
