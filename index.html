@@ -203,6 +203,9 @@ header{position:sticky;top:0;z-index:20;background:#111;border-bottom:1px solid 
 #rdv textarea{min-height:110px;resize:vertical}
 .note{font-size:14px;color:var(--soft);margin:10px 0 0}
 #err{color:#d93a3a;margin:0;font-size:14px}
+.req{margin:0;font-size:13px;color:var(--soft)}
+#rdv label b,.req b{color:var(--red)}
+#rdv input.bad{border-color:#d93a3a}
 .ok{display:none;border-left:4px solid var(--red);background:var(--okbg);padding:14px 16px}
 .ok.show{display:block}
 .smsrow{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
@@ -390,15 +393,21 @@ footer b{color:#fff}
         </dl>
       </div>
       <form id="rdv" novalidate>
+        <p class="req">Tous les champs marqués <b>*</b> sont obligatoires.</p>
         <div class="row">
-          <label for="nom">Nom<input id="nom" name="nom" autocomplete="name"></label>
-          <label for="tel">Téléphone<input id="tel" name="tel" type="tel" autocomplete="tel"></label>
+          <label for="nom"><span>Nom <b>*</b></span><input id="nom" name="nom" autocomplete="family-name" required></label>
+          <label for="prenom"><span>Prénom <b>*</b></span><input id="prenom" name="prenom" autocomplete="given-name" required></label>
         </div>
-        <label for="email">E-mail <span style="font-weight:400">(facultatif, pour recevoir une réponse par mail)</span><input id="email" name="email" type="email" autocomplete="email" inputmode="email"></label>
         <div class="row">
-          <label for="vehicule">Véhicule<input id="vehicule" name="vehicule" placeholder="Ex. Peugeot 208 2019"></label>
-          <label for="prestation">Prestation<select id="prestation" name="prestation"></select></label>
+          <label for="tel"><span>Téléphone <b>*</b></span><input id="tel" name="tel" type="tel" autocomplete="tel" inputmode="tel" required></label>
+          <label for="email"><span>E-mail <b>*</b></span><input id="email" name="email" type="email" autocomplete="email" inputmode="email" required></label>
         </div>
+        <label for="adresse"><span>Adresse postale <b>*</b></span><input id="adresse" name="adresse" autocomplete="street-address" placeholder="N°, rue, code postal, ville" required></label>
+        <div class="row">
+          <label for="vehicule"><span>Véhicule <b>*</b></span><input id="vehicule" name="vehicule" placeholder="Ex. Peugeot 208 2019" required></label>
+          <label for="immat"><span>Immatriculation <b>*</b></span><input id="immat" name="immat" placeholder="AB-123-CD" autocapitalize="characters" maxlength="12" required></label>
+        </div>
+        <label for="prestation">Prestation<select id="prestation" name="prestation"></select></label>
         <label for="msg">Symptômes ou demande<textarea id="msg" name="msg" placeholder="Voyant moteur allumé depuis hier, à-coups à l'accélération…"></textarea></label>
         <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
         <button class="btn" id="sendBtn" type="submit">Envoyer la demande</button>
@@ -507,15 +516,18 @@ const sendBtn=document.getElementById('sendBtn');
 const FORM_URL='https://api.web3forms.com/submit', ACCESS_KEY='13abc67d-c800-4fbb-8ccb-c506fda2aded';
 f.addEventListener('submit',async e=>{
   e.preventDefault();
-  const nom=f.nom.value.trim(), tel=f.tel.value.trim(), mail=f.email.value.trim();
-  if(!nom||!tel){err.textContent='Indiquez au moins votre nom et votre téléphone.';(nom?f.tel:f.nom).focus();return;}
-  if(mail&&!f.email.checkValidity()){err.textContent='L\'adresse e-mail semble incorrecte.';f.email.focus();return;}
+  const v=n=>f[n].value.trim();
+  const need=[['nom','votre nom'],['prenom','votre prénom'],['tel','votre téléphone'],['email','votre e-mail'],['adresse','votre adresse postale'],['vehicule','votre véhicule'],['immat','l\'immatriculation']];
+  f.querySelectorAll('input.bad').forEach(i=>i.classList.remove('bad'));
+  const miss=need.filter(([n])=>!v(n));
+  if(miss.length){miss.forEach(([n])=>f[n].classList.add('bad'));err.textContent='Merci d\'indiquer '+miss.map(m=>m[1]).join(', ')+'.';f[miss[0][0]].focus();return;}
+  if(!f.email.checkValidity()){f.email.classList.add('bad');err.textContent='L\'adresse e-mail semble incorrecte.';f.email.focus();return;}
   if(f._honey.value) return;
+  const nom=v('nom').toUpperCase(), prenom=v('prenom'), tel=v('tel'), mail=v('email'), immat=v('immat').toUpperCase();
   err.textContent=''; ok.classList.remove('show');
   sendBtn.disabled=true; sendBtn.textContent='Envoi en cours…';
-  const data={access_key:ACCESS_KEY,subject:'Nouvelle demande de RDV – '+nom,from_name:'Site ARB DiagAuto',
-    Nom:nom,'Téléphone':tel,'E-mail':mail||'—','Véhicule':f.vehicule.value.trim()||'—',Prestation:f.prestation.value,Message:f.msg.value.trim()||'—'};
-  if(mail) data.replyto=mail;
+  const data={access_key:ACCESS_KEY,subject:'Nouvelle demande de RDV – '+prenom+' '+nom+' – '+immat,from_name:'Site ARB DiagAuto',replyto:mail,
+    Nom:nom,'Prénom':prenom,'Téléphone':tel,'E-mail':mail,'Adresse postale':v('adresse'),'Véhicule':v('vehicule'),Immatriculation:immat,Prestation:f.prestation.value,Message:v('msg')||'—'};
   try{
     const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),15000);
     const r=await fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(data),signal:ctl.signal});
@@ -523,7 +535,7 @@ f.addEventListener('submit',async e=>{
     let j={}; try{j=await r.json()}catch(_){}
     if(!r.ok||!j.success) throw new Error(j.message||r.status);
     const clean=s=>s.replace(/[&<>"]/g,'');
-    ok.innerHTML='<strong>Demande envoyée, merci '+clean(nom)+' !</strong><br>Le garage vous rappelle au '+clean(tel)+' dès que possible.';
+    ok.innerHTML='<strong>Demande envoyée, merci '+clean(prenom)+' !</strong><br>Le garage vous rappelle au '+clean(tel)+' dès que possible.';
     ok.classList.add('show'); f.reset();
   }catch(x){
     err.innerHTML='L\'envoi n\'a pas fonctionné. Appelez directement le <a href="tel:+33616178325">06 16 17 83 25</a>.';
